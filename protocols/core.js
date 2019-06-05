@@ -1,39 +1,79 @@
 const EventEmitter = require('events').EventEmitter,
-    dns = require('dns'),
     net = require('net'),
-    async = require('async'),
     Reader = require('../lib/reader'),
-    HexUtil = require('../lib/HexUtil');
+    HexUtil = require('../lib/HexUtil'),
+    requestAsync = require('request-promise'),
+    Promises = require('../lib/Promises'),
+    Logger = require('../lib/Logger'),
+    DnsResolver = require('../lib/DnsResolver');
+
+let uid = 0;
 
 class Core extends EventEmitter {
     constructor() {
         super();
-        this.options = {
-            socketTimeout: 1000,
-            attemptTimeout: 10000,
-            maxAttempts: 1
-        };
-        this.attempt = 1;
-        this.finished = false;
         this.encoding = 'utf8';
         this.byteorder = 'le';
         this.delimiter = '\0';
         this.srvRecord = null;
-        this.attemptTimeoutTimer = null;
+        this.abortedPromise = null;
+        this.logger = new Logger();
+        this.dnsResolver = new DnsResolver(this.logger);
+
+        // Sent to us by QueryRunner
+        this.options = null;
+        /** @type GlobalUdpSocket */
+        this.udpSocket = null;
+        this.shortestRTT = 0;
+        this.usedTcp = false;
     }
 
-    fatal(err,noretry) {
-        if(!noretry && this.attempt < this.options.maxAttempts) {
-            this.attempt++;
-            this.start();
-            return;
+    // Runs a single attempt with a timeout and cleans up afterward
+    async runOnceSafe() {
+        if (this.options.debug) {
+            this.logger.debugEnabled = true;
+        }
+        this.logger.prefix = 'Q#' + (uid++);
+
+        this.logger.debug("Query is running with options:", this.options);
+
+        let abortCall = null;
+        this.abortedPromise = new Promise((resolve,reject) => {
+            abortCall = () => reject("Query is finished -- cancelling outstanding promises");
+        });
+
+        // Make sure that if this promise isn't attached to, it doesn't throw a unhandled promise rejection
+        this.abortedPromise.catch(() => {});
+
+        let timeout;
+        try {
+            const promise = this.runOnce();
+            timeout = Promises.createTimeout(this.options.attemptTimeout, "Attempt");
+            const result = await Promise.race([promise, timeout]);
+            this.logger.debug("Query was successful");
+            return result;
+        } catch(e) {
+            this.logger.debug("Query failed with error", e);
+            throw e;
+        } finally {
+            timeout && timeout.cancel();
+            try {
+                abortCall();
+            } catch(e) {
+                this.logger.debug("Error during abort cleanup: " + e.stack);
+            }
+        }
+    }
+
+    async runOnce() {
+        const options = this.options;
+        if (('host' in options) && !('address' in options)) {
+            const resolved = await this.dnsResolver.resolve(options.host, this.srvRecord);
+            options.address = resolved.address;
+            if (resolved.port) options.port = resolved.port;
         }
 
-        this.done({error: err.toString()});
-    }
-
-    initState() {
-        return {
+        const state = {
             name: '',
             map: '',
             password: false,
@@ -44,128 +84,68 @@ class Core extends EventEmitter {
             players: [],
             bots: []
         };
-    }
 
-    finalizeState(state) {}
+        await this.run(state);
 
-    finish(state) {
-        this.finalizeState(state);
-        this.done(state);
-    }
+        // because lots of servers prefix with spaces to try to appear first
+        state.name = (state.name || '').trim();
 
-    done(state) {
-        if(this.finished) return;
-
-        if(this.options.notes)
-            state.notes = this.options.notes;
-
-        state.query = {};
-        if('host' in this.options) state.query.host = this.options.host;
-        if('address' in this.options) state.query.address = this.options.address;
-        if('port' in this.options) state.query.port = this.options.port;
-        if('port_query' in this.options) state.query.port_query = this.options.port_query;
-        state.query.type = this.type;
-        if('pretty' in this) state.query.pretty = this.pretty;
-        state.query.duration = Date.now() - this.startMillis;
-        state.query.attempts = this.attempt;
-
-        this.reset();
-        this.finished = true;
-        this.emit('finished',state);
-        if(this.options.callback) this.options.callback(state);
-    }
-
-    reset() {
-        clearTimeout(this.attemptTimeoutTimer);
-        if(this.timers) {
-            for (const timer of this.timers) {
-                clearTimeout(timer);
+        if (typeof state.players === 'number') {
+            const num = state.players;
+            state.players = [];
+            state.raw.rcvNumPlayers = num;
+            if (num < 10000) {
+                for (let i = 0; i < num; i++) {
+                    state.players.push({});
+                }
             }
         }
-        this.timers = [];
-
-        if(this.tcpSocket) {
-            this.tcpSocket.destroy();
-            delete this.tcpSocket;
+        if (typeof state.bots === 'number') {
+            const num = state.bots;
+            state.bots = [];
+            state.raw.rcvNumBots = num;
+            if (num < 10000) {
+                for (let i = 0; i < num; i++) {
+                    state.bots.push({});
+                }
+            }
         }
 
-        this.udpTimeoutTimer = false;
-        this.udpCallback = false;
+        if (!('connect' in state)) {
+            state.connect = ''
+                + (state.gameHost || this.options.host || this.options.address)
+                + ':'
+                + (state.gamePort || this.options.port)
+        }
+        state.ping = this.shortestRTT;
+        delete state.gameHost;
+        delete state.gamePort;
+
+        this.logger.debug(log => {
+            log("Size of players array: " + state.players.length);
+            log("Size of bots array: " + state.bots.length);
+        });
+
+        return state;
     }
 
-    start() {
-        const options = this.options;
-        this.reset();
+    async run(state) {}
 
-        this.startMillis = Date.now();
-
-        this.attemptTimeoutTimer = setTimeout(() => {
-            this.fatal('timeout');
-        },this.options.attemptTimeout);
-
-        async.series([
-            (c) => {
-                // resolve host names
-                if(!('host' in options)) return c();
-                if(options.host.match(/\d+\.\d+\.\d+\.\d+/)) {
-                    options.address = options.host;
-                    c();
-                } else {
-                    this.parseDns(options.host,c);
-                }
-            },
-            (c) => {
-                // calculate query port if needed
-                if(!('port_query' in options) && 'port' in options) {
-                    const offset = options.port_query_offset || 0;
-                    options.port_query = options.port + offset;
-                }
-                c();
-            },
-            (c) => {
-                // run
-                this.run(this.initState());
+    /** Param can be a time in ms, or a promise (which will be timed) */
+    registerRtt(param) {
+        if (param.then) {
+            const start = Date.now();
+            param.then(() => {
+                const end = Date.now();
+                const rtt = end - start;
+                this.registerRtt(rtt);
+            }).catch(() => {});
+        } else {
+            this.debugLog("Registered RTT: " + param + "ms");
+            if (this.shortestRTT === 0 || param < this.shortestRTT) {
+                this.shortestRTT = param;
             }
-
-        ]);
-    }
-
-    parseDns(host,c) {
-        const resolveStandard = (host,c) => {
-            if(this.debug) console.log("Standard DNS Lookup: " + host);
-            dns.lookup(host, (err,address,family) => {
-                if(err) return this.fatal(err);
-                if(this.debug) console.log(address);
-                this.options.address = address;
-                c();
-            });
-        };
-
-        const resolveSrv = (srv,host,c) => {
-            if(this.debug) console.log("SRV DNS Lookup: " + srv+'.'+host);
-            dns.resolve(srv+'.'+host, 'SRV', (err,addresses) => {
-                if(this.debug) console.log(err, addresses);
-                if(err) return resolveStandard(host,c);
-                if(addresses.length >= 1) {
-                    const line = addresses[0];
-                    this.options.port = line.port;
-                    const srvhost = line.name;
-
-                    if(srvhost.match(/\d+\.\d+\.\d+\.\d+/)) {
-                        this.options.address = srvhost;
-                        c();
-                    } else {
-                        // resolve yet again
-                        resolveStandard(srvhost,c);
-                    }
-                    return;
-                }
-                return resolveStandard(host,c);
-            });
-        };
-
-        if(this.srvRecord) resolveSrv(this.srvRecord,host,c);
-        else resolveStandard(host,c);
+        }
     }
 
     // utils
@@ -182,125 +162,220 @@ class Core extends EventEmitter {
             }
         }
     }
-    setTimeout(c,t) {
-        if(this.finished) return 0;
-        const id = setTimeout(c,t);
-        this.timers.push(id);
-        return id;
-    }
 
     trueTest(str) {
         if(typeof str === 'boolean') return str;
         if(typeof str === 'number') return str !== 0;
         if(typeof str === 'string') {
             if(str.toLowerCase() === 'true') return true;
-            if(str === 'yes') return true;
+            if(str.toLowerCase() === 'yes') return true;
             if(str === '1') return true;
         }
         return false;
     }
 
-    _tcpConnect(c) {
-        if(this.tcpSocket) return c(this.tcpSocket);
-
-        let connected = false;
-        let received = Buffer.from([]);
-        const address = this.options.address;
-        const port = this.options.port_query;
-
-        const socket = this.tcpSocket = net.connect(port,address,() => {
-            if(this.debug) console.log(address+':'+port+" TCPCONNECTED");
-            connected = true;
-            c(socket);
-        });
-        socket.setNoDelay(true);
-        if(this.debug) console.log(address+':'+port+" TCPCONNECT");
-
-        const writeHook = socket.write;
-        socket.write = (...args) => {
-            if(this.debug) {
-                console.log(address+':'+port+" TCP-->");
-                console.log(HexUtil.debugDump(args[0]));
-            }
-            writeHook.apply(socket,args);
-        };
-
-        socket.on('error', () => {});
-        socket.on('close', () => {
-            if(!this.tcpCallback) return;
-            if(connected) return this.fatal('Socket closed while waiting on TCP');
-            else return this.fatal('TCP Connection Refused');
-        });
-        socket.on('data', (data) => {
-            if(!this.tcpCallback) return;
-            if(this.debug) {
-                console.log(address+':'+port+" <--TCP");
-                console.log(HexUtil.debugDump(data));
-            }
-            received = Buffer.concat([received,data]);
-            if(this.tcpCallback(received)) {
-                clearTimeout(this.tcpTimeoutTimer);
-                this.tcpCallback = false;
-                received = Buffer.from([]);
-            }
-        });
+    assertValidPort(port) {
+        if (!port || port < 1 || port > 65535) {
+            throw new Error("Invalid tcp/ip port: " + port);
+        }
     }
-    tcpSend(buffer,ondata) {
-        process.nextTick(() => {
-            if(this.tcpCallback) return this.fatal('Attempted to send TCP packet while still waiting on a managed response');
-            this._tcpConnect((socket) => {
+
+    /**
+     * @template T
+     * @param {function(NodeJS.Socket):Promise<T>} fn
+     * @param {number=} port
+     * @returns {Promise<T>}
+     */
+    async withTcp(fn, port) {
+        this.usedTcp = true;
+        const address = this.options.address;
+        if (!port) port = this.options.port;
+        this.assertValidPort(port);
+
+        let socket, connectionTimeout;
+        try {
+            socket = net.connect(port,address);
+            socket.setNoDelay(true);
+
+            // Prevent unhandled 'error' events from dumping straight to console
+            socket.on('error', () => {});
+
+            this.debugLog(log => {
+                this.debugLog(address+':'+port+" TCP Connecting");
+                const writeHook = socket.write;
+                socket.write = (...args) => {
+                    log(address+':'+port+" TCP-->");
+                    log(HexUtil.debugDump(args[0]));
+                    writeHook.apply(socket,args);
+                };
+                socket.on('error', e => log('TCP Error:', e));
+                socket.on('close', () => log('TCP Closed'));
+                socket.on('data', (data) => {
+                    log(address+':'+port+" <--TCP");
+                    log(data);
+                });
+                socket.on('ready', () => log(address+':'+port+" TCP Connected"));
+            });
+
+            const connectionPromise = new Promise((resolve,reject) => {
+                socket.on('ready', resolve);
+                socket.on('close', () => reject(new Error('TCP Connection Refused')));
+            });
+            this.registerRtt(connectionPromise);
+            connectionTimeout = Promises.createTimeout(this.options.socketTimeout, 'TCP Opening');
+            await Promise.race([
+                connectionPromise,
+                connectionTimeout,
+                this.abortedPromise
+            ]);
+            return await fn(socket);
+        } finally {
+            socket && socket.destroy();
+            connectionTimeout && connectionTimeout.cancel();
+        }
+    }
+
+    /**
+     * @template T
+     * @param {NodeJS.Socket} socket
+     * @param {Buffer|string} buffer
+     * @param {function(Buffer):T} ondata
+     * @returns Promise<T>
+     */
+    async tcpSend(socket,buffer,ondata) {
+        let timeout;
+        try {
+            const promise = new Promise(async (resolve, reject) => {
+                let received = Buffer.from([]);
+                const onData = (data) => {
+                    received = Buffer.concat([received, data]);
+                    const result = ondata(received);
+                    if (result !== undefined) {
+                        socket.removeListener('data', onData);
+                        resolve(result);
+                    }
+                };
+                socket.on('data', onData);
                 socket.write(buffer);
             });
-            if(!ondata) return;
-
-            this.tcpTimeoutTimer = this.setTimeout(() => {
-                this.tcpCallback = false;
-                this.fatal('TCP Watchdog Timeout');
-            },this.options.socketTimeout);
-            this.tcpCallback = ondata;
-        });
+            timeout = Promises.createTimeout(this.options.socketTimeout, 'TCP');
+            return await Promise.race([promise, timeout, this.abortedPromise]);
+        } finally {
+            timeout && timeout.cancel();
+        }
     }
 
-    udpSend(buffer,onpacket,ontimeout) {
-        process.nextTick(() => {
-            if(this.udpCallback) return this.fatal('Attempted to send UDP packet while still waiting on a managed response');
-            this._udpSendNow(buffer);
-            if(!onpacket) return;
-
-            this.udpTimeoutTimer = this.setTimeout(() => {
-                this.udpCallback = false;
-                let timeout = false;
-                if(!ontimeout || ontimeout() !== true) timeout = true;
-                if(timeout) this.fatal('UDP Watchdog Timeout');
-            },this.options.socketTimeout);
-            this.udpCallback = onpacket;
-        });
-    }
-    _udpSendNow(buffer) {
-        if(!('port_query' in this.options)) return this.fatal('Attempted to send without setting a port');
-        if(!('address' in this.options)) return this.fatal('Attempted to send without setting an address');
+    /**
+     * @param {Buffer|string} buffer
+     * @param {function(Buffer):T=} onPacket
+     * @param {(function():T)=} onTimeout
+     * @returns Promise<T>
+     * @template T
+     */
+    async udpSend(buffer,onPacket,onTimeout) {
+        const address = this.options.address;
+        const port = this.options.port;
+        this.assertValidPort(port);
 
         if(typeof buffer === 'string') buffer = Buffer.from(buffer,'binary');
+        this.debugLog(log => {
+            log(address+':'+port+" UDP-->");
+            log(HexUtil.debugDump(buffer));
+        });
 
-        if(this.debug) {
-            console.log(this.options.address+':'+this.options.port_query+" UDP-->");
-            console.log(HexUtil.debugDump(buffer));
+        const socket = this.udpSocket;
+        socket.send(buffer, address, port);
+
+        if (!onPacket && !onTimeout) {
+            return null;
         }
-        this.udpSocket.send(buffer,0,buffer.length,this.options.port_query,this.options.address);
-    }
-    _udpResponse(buffer) {
-        if(this.udpCallback) {
-            const result = this.udpCallback(buffer);
-            if(result === true) {
-                // we're done with this udp session
-                clearTimeout(this.udpTimeoutTimer);
-                this.udpCallback = false;
-            }
-        } else {
-            this.udpResponse(buffer);
+
+        let socketCallback;
+        let timeout;
+        try {
+            const promise = new Promise((resolve, reject) => {
+                const start = Date.now();
+                let end = null;
+                socketCallback = (fromAddress, fromPort, buffer) => {
+                    try {
+                        if (fromAddress !== address) return;
+                        if (fromPort !== port) return;
+                        if (end === null) {
+                            end = Date.now();
+                            const rtt = end-start;
+                            this.registerRtt(rtt);
+                        }
+                        const result = onPacket(buffer);
+                        if (result !== undefined) {
+                            this.debugLog("UDP send finished by callback");
+                            resolve(result);
+                        }
+                    } catch(e) {
+                        reject(e);
+                    }
+                };
+                socket.addCallback(socketCallback, this.options.debug);
+            });
+            timeout = Promises.createTimeout(this.options.socketTimeout, 'UDP');
+            const wrappedTimeout = new Promise((resolve, reject) => {
+                timeout.catch((e) => {
+                    this.debugLog("UDP timeout detected");
+                    if (onTimeout) {
+                        try {
+                            const result = onTimeout();
+                            if (result !== undefined) {
+                                this.debugLog("UDP timeout resolved by callback");
+                                resolve(result);
+                                return;
+                            }
+                        } catch(e) {
+                            reject(e);
+                        }
+                    }
+                    reject(e);
+                });
+            });
+            return await Promise.race([promise, wrappedTimeout, this.abortedPromise]);
+        } finally {
+            timeout && timeout.cancel();
+            socketCallback && socket.removeCallback(socketCallback);
         }
     }
-    udpResponse() {}
+
+    async request(params) {
+        // If we haven't opened a raw tcp socket yet during this query, just open one and then immediately close it.
+        // This will give us a much more accurate RTT than using the rtt of the http request.
+        if (!this.usedTcp) {
+            await this.withTcp(() => {});
+        }
+
+        let requestPromise;
+        try {
+            requestPromise = requestAsync({
+                ...params,
+                timeout: this.options.socketTimeout,
+                resolveWithFullResponse: true
+            });
+            this.debugLog(log => {
+                log(() => params.uri + " HTTP-->");
+                requestPromise
+                    .then((response) => log(params.uri + " <--HTTP " + response.statusCode))
+                    .catch(() => {});
+            });
+            const wrappedPromise = requestPromise.then(response => {
+                if (response.statusCode !== 200) throw new Error("Bad status code: " + response.statusCode);
+                return response.body;
+            });
+            return await Promise.race([wrappedPromise, this.abortedPromise]);
+        } finally {
+            requestPromise && requestPromise.cancel();
+        }
+    }
+
+    /** @deprecated */
+    debugLog(...args) {
+        this.logger.debug(...args);
+    }
 }
 
 module.exports = Core;

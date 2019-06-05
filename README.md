@@ -14,75 +14,63 @@ Usage from Node.js
 npm install gamedig
 ```
 
-Promise:
 ```javascript
 const Gamedig = require('gamedig');
 Gamedig.query({
-	type: 'minecraft',
-	host: 'mc.example.com'
+    type: 'minecraft',
+    host: 'mc.example.com'
 }).then((state) => {
-	console.log(state);
+    console.log(state);
 }).catch((error) => {
-	console.log("Server is offline");
+    console.log("Server is offline");
 });
 ```
-
-or Node.JS Callback:
-```javascript
-const Gamedig = require('gamedig');
-Gamedig.query({
-	type: 'minecraft',
-	host: 'mc.example.com'
-},
-function(e,state) {
-	if(e) console.log("Server is offline");
-	else console.log(state);
-});
-```
-
-> Is NPM out of date? If you're feeling lucky, you can install the latest code with
-> ```shell
-> npm install sonicsnes/node-gamedig
-> ```
 
 ### Query Options
 
 **Typical**
 
-* **type**: One of the game IDs listed in the game list below
-* **host**: Hostname or IP of the game server
-* **port**: (optional) Uses the protocol default if not set
+* **type**: string - One of the game IDs listed in the game list below
+* **host**: string - Hostname or IP of the game server
+* **port**: number (optional) - Connection port or query port for the game server. Some
+games utilize a separate "query" port. If specifying the game port does not seem to work as expected, passing in
+this query port may work instead. (defaults to protocol default port)
 
 **Advanced**
 
-* **notes**: (optional) An object passed through in the return value.
-* **maxAttempts**: (optional) Number of attempts to query server in case of failure. (default 1)
-* **socketTimeout**: (optional) Milliseconds to wait for a single packet. Beware that increasing this
- will cause many queries to take longer even if the server is online. (default 1000)
-* **attemptTimeout**: (optional) Milliseconds allowed for an entire query attempt. This timeout is not commonly hit,
+* **maxAttempts**: number - Number of attempts to query server in case of failure. (default 1)
+* **socketTimeout**: number - Milliseconds to wait for a single packet. Beware that increasing this
+ will cause many queries to take longer even if the server is online. (default 2000)
+* **attemptTimeout**: number - Milliseconds allowed for an entire query attempt. This timeout is not commonly hit,
  as the socketTimeout typically fires first. (default 10000)
+* **debug**: boolean - Enables massive amounts of debug logging to stdout. (default false)
 
 ### Return Value
 
 The returned state object will contain the following keys:
 
-**Stable, always present:**
-
-* **name**
-* **map**
-* **password**: Boolean
-* **maxplayers**
-* **players**: (array of objects) Each object **may** contain name, ping, score, team, address
-* **bots**: Same schema as players
-* **notes**: Passed through from the input
-
-**Unstable, not guaranteed:**
-
-* **raw**: Contains all information received from the server
-* **query**: Details about the query performed
-
-It can usually be assumed that the number of players online is equal to the length of the players array.
-Some servers may return an additional player count number, which may be present in the unstable raw object.
+* **name**: string - Server name
+* **map**: string - Current server game map
+* **password**: boolean - If a password is required
+* **maxplayers**: number
+* **players**: array of objects
+  * Each object **may or may not** contain name, ping, score, team, address.
+  * The number of players online can be determined by `players.length`.
+  * For servers which do not provide player names, this may be an array
+of empty objects (ex. `[{},{},{}]`), one for each player without a name.
+* **bots**: array of objects - Same schema as `players`
+* **connect**: string
+  * This will typically include the game's `ip:port`
+  * The port will reflect the server's game port, even if your request specified the game's query port in the request.
+  * For some games, this may be a server ID or connection url if an IP:Port is not appropriate for end-users.
+* **ping**: number
+  * Round trip time to the server (in milliseconds).
+  * Note that this is not the RTT of an ICMP echo, as ICMP packets are often blocked by NATs and node
+    has poor support for raw sockets.
+  * This value is derived from the RTT of one of the query packets, which is usually quite accurate, but may add a bit due to server lag.
+* **raw**: freeform object (unstable)
+  * Contains all information received from the server in a disorganized format.
+  * The content of this field MAY change on a per-protocol basis between GameDig patch releases (although not typical).
 
 Games List
 ---
@@ -90,282 +78,325 @@ Games List
 ### Supported
 <!--- BEGIN GENERATED GAMES -->
 
-* 7 Days to Die (7d2d) [[Separate Query Port](#separate-query-port)]
-* Age of Chivalry (ageofchivalry)
-* Age of Empires 2 (aoe2) [[Separate Query Port](#separate-query-port)]
-* Alien Arena (alienarena) [[Separate Query Port](#separate-query-port)]
-* Alien Swarm (alienswarm)
-* ARK: Survival Evolved (arkse) [[Separate Query Port](#separate-query-port)]
-* Aliens vs Predator 2 (avp2)
-* Aliens vs Predator 2010 (avp2010)
-* America's Army (americasarmy) [[Separate Query Port](#separate-query-port)]
-* America's Army 2 (americasarmy2) [[Separate Query Port](#separate-query-port)]
-* America's Army 3 (americasarmy3) [[Separate Query Port](#separate-query-port)]
-* America's Army: Proving Grounds (americasarmypg) [[Separate Query Port](#separate-query-port)]
-* ArmA (arma)
-* ArmA 2 (arma2) [[Separate Query Port](#separate-query-port)]
-* ArmA 3 (arma3) [[Separate Query Port](#separate-query-port)]
-* Armagetron (armagetron)
-* Baldur's Gate (baldursgate) [[Separate Query Port](#separate-query-port)]
-* Battlefield 1942 (bf1942) [[Separate Query Port](#separate-query-port)]
-* Battlefield Vietnam (bfv) [[Separate Query Port](#separate-query-port)]
-* Battlefield 2 (bf2) [[Separate Query Port](#separate-query-port)]
-* Battlefield 2142 (bf2142) [[Separate Query Port](#separate-query-port)]
-* Battlefield: Bad Company 2 (bfbc2) [[Separate Query Port](#separate-query-port)]
-* Battlefield 3 (bf3) [[Separate Query Port](#separate-query-port)]
-* Battlefield 4 (bf4) [[Separate Query Port](#separate-query-port)]
-* Battlefield Hardline (bfh) [[Separate Query Port](#separate-query-port)]
-* Breach (breach)
-* Breed (breed)
-* Brink (brink) [[Separate Query Port](#separate-query-port)]
-* Build and Shoot (buildandshoot) [[Separate Query Port](#separate-query-port)]
-* Call of Duty (cod)
-* Call of Duty: United Offensive (coduo)
-* Call of Duty 2 (cod2)
-* Call of Duty 3 (cod3)
-* Call of Duty 4: Modern Warfare (cod4)
-* Call of Duty: World at War (codwaw)
-* Call of Duty: Modern Warfare 2 (codmw2)
-* Call of Duty: Modern Warfare 3 (codmw3) [[Separate Query Port](#separate-query-port)]
-* Call of Juarez (callofjuarez) [[Separate Query Port](#separate-query-port)]
-* Chaser (chaser) [[Separate Query Port](#separate-query-port)]
-* Chrome (chrome) [[Separate Query Port](#separate-query-port)]
-* Codename Eagle (codenameeagle) [[Separate Query Port](#separate-query-port)]
-* Commandos 3: Destination Berlin (commandos3) [[Separate Query Port](#separate-query-port)]
-* Command and Conquer: Renegade (cacrenegade) [[Separate Query Port](#separate-query-port)]
-* Conan Exiles (conanexiles) [[Separate Query Port](#separate-query-port)]
-* Contact J.A.C.K. (contactjack) [[Separate Query Port](#separate-query-port)]
-* Counter-Strike 1.6 (cs16)
-* Counter-Strike: Condition Zero (cscz)
-* Counter-Strike: Source (css)
-* Counter-Strike: Global Offensive (csgo) [[Additional Notes](#csgo)]
-* Cross Racing Championship (crossracing) [[Separate Query Port](#separate-query-port)]
-* Crysis (crysis)
-* Crysis Wars (crysiswars)
-* Crysis 2 (crysis2)
-* Daikatana (daikatana) [[Separate Query Port](#separate-query-port)]
-* Dark Messiah of Might and Magic (dmomam)
-* Darkest Hour (darkesthour) [[Separate Query Port](#separate-query-port)]
-* DayZ (dayz) [[Separate Query Port](#separate-query-port)] [[Additional Notes](#dayz)]
-* DayZ Mod (dayzmod) [[Separate Query Port](#separate-query-port)]
-* Deadly Dozen: Pacific Theater (deadlydozenpt) [[Separate Query Port](#separate-query-port)]
-* Deer Hunter 2005 (dh2005) [[Separate Query Port](#separate-query-port)]
-* Descent 3 (descent3) [[Separate Query Port](#separate-query-port)]
-* Deus Ex (deusex) [[Separate Query Port](#separate-query-port)]
-* Devastation (devastation) [[Separate Query Port](#separate-query-port)]
-* Dino D-Day (dinodday)
-* Dirt Track Racing 2 (dirttrackracing2) [[Separate Query Port](#separate-query-port)]
-* Dark and Light (dnl) [[Separate Query Port](#separate-query-port)]
-* Day of Defeat (dod)
-* Day of Defeat: Source (dods)
-* Day of Infamy (doi)
-* Doom 3 (doom3)
-* DOTA 2 (dota2)
-* Drakan (drakan) [[Separate Query Port](#separate-query-port)]
-* Enemy Territory Quake Wars (etqw) [[Separate Query Port](#separate-query-port)]
-* F.E.A.R. (fear) [[Separate Query Port](#separate-query-port)]
-* F1 2002 (f12002) [[Separate Query Port](#separate-query-port)]
-* F1 Challenge 99-02 (f1c9902) [[Separate Query Port](#separate-query-port)]
-* Far Cry (farcry) [[Separate Query Port](#separate-query-port)]
-* Far Cry (farcry2) [[Separate Query Port](#separate-query-port)]
-* Fortress Forever (fortressforever)
-* Flashpoint (flashpoint) [[Separate Query Port](#separate-query-port)]
-* Frontlines: Fuel of War (ffow) [[Separate Query Port](#separate-query-port)]
-* FiveM (fivem)
-* Garry's Mod (garrysmod)
-* Ghost Recon: Advanced Warfighter (graw) [[Separate Query Port](#separate-query-port)]
-* Ghost Recon: Advanced Warfighter 2 (graw2) [[Separate Query Port](#separate-query-port)]
-* Giants: Citizen Kabuto (giantscitizenkabuto) [[Separate Query Port](#separate-query-port)]
-* Global Operations (globaloperations) [[Separate Query Port](#separate-query-port)]
-* Geneshift (geneshift)
-* GoldenEye: Source (ges)
-* Gore (gore) [[Separate Query Port](#separate-query-port)]
-* Gunman Chronicles (gunmanchronicles)
-* Half-Life 1 Deathmatch (hldm)
-* Half-Life 2 Deathmatch (hl2dm)
-* Halo (halo)
-* Halo 2 (halo2)
-* Heretic 2 (heretic2) [[Separate Query Port](#separate-query-port)]
-* Hexen 2 (hexen2) [[Separate Query Port](#separate-query-port)]
-* The Hidden: Source (hidden)
-* Hidden and Dangerous 2 (had2) [[Separate Query Port](#separate-query-port)]
-* Homefront (homefront)
-* Homeworld 2 (homeworld2) [[Separate Query Port](#separate-query-port)]
-* Hurtworld (hurtworld) [[Separate Query Port](#separate-query-port)]
-* IGI-2: Covert Strike (igi2) [[Separate Query Port](#separate-query-port)]
-* IL-2 Sturmovik (il2) [[Separate Query Port](#separate-query-port)]
-* Insurgency (insurgency)
-* Iron Storm (ironstorm) [[Separate Query Port](#separate-query-port)]
-* James Bond: Nightfire (jamesbondnightfire) [[Separate Query Port](#separate-query-port)]
-* Just Cause 2 Multiplayer (jc2mp)
-* Killing Floor (killingfloor) [[Separate Query Port](#separate-query-port)]
-* Killing Floor 2 (killingfloor2) [[Separate Query Port](#separate-query-port)]
-* Kingpin: Life of Crime (kingpin) [[Separate Query Port](#separate-query-port)]
-* KISS Psycho Circus (kisspc) [[Separate Query Port](#separate-query-port)]
-* DMP - KSP Multiplayer (kspdmp) [[Separate Query Port](#separate-query-port)]
-* KzMod (kzmod)
-* Left 4 Dead (left4dead)
-* Left 4 Dead 2 (left4dead2)
-* Mafia 2 Multiplayer (m2mp) [[Separate Query Port](#separate-query-port)]
-* Medieval Engineers (medievalengineers)
-* Medal of Honor: Allied Assault (mohaa) [[Separate Query Port](#separate-query-port)]
-* Medal of Honor: Pacific Assault (mohpa) [[Separate Query Port](#separate-query-port)]
-* Medal of Honor: Airborne (mohab) [[Separate Query Port](#separate-query-port)]
-* Medal of Honor: Spearhead (mohsh) [[Separate Query Port](#separate-query-port)]
-* Medal of Honor: Breakthrough (mohbt) [[Separate Query Port](#separate-query-port)]
-* Medal of Honor 2010 (moh2010) [[Separate Query Port](#separate-query-port)]
-* Medal of Honor: Warfighter (mohwf) [[Separate Query Port](#separate-query-port)]
-* Minecraft (minecraft) [[Additional Notes](#minecraft)]
-* Minecraft: Pocket Edition (minecraftpe)
-* Minecraft (minecraftping) [[Additional Notes](#minecraft)]
-* Monday Night Combat (mnc) [[Separate Query Port](#separate-query-port)]
-* Multi Theft Auto: Vice City (mtavc) [[Separate Query Port](#separate-query-port)]
-* Multi Theft Auto: San Andreas (mtasa) [[Separate Query Port](#separate-query-port)]
-* Mumble (mumble) [[Separate Query Port](#separate-query-port)] [[Additional Notes](#mumble)]
-* Mumble (mumbleping) [[Additional Notes](#mumble)]
-* Mutant Factions (mutantfactions)
-* Nascar Thunder 2004 (nascarthunder2004) [[Separate Query Port](#separate-query-port)]
-* netPanzer (netpanzer)
-* No More Room in Hell (nmrih)
-* Natural Selection (ns)
-* Natural Selection 2 (ns2) [[Separate Query Port](#separate-query-port)]
-* Need for Speed: Hot Pursuit 2 (nfshp2) [[Separate Query Port](#separate-query-port)]
-* Nerf Arena Blast (nab) [[Separate Query Port](#separate-query-port)]
-* Neverwinter Nights (nwn) [[Separate Query Port](#separate-query-port)]
-* Neverwinter Nights 2 (nwn2) [[Separate Query Port](#separate-query-port)]
-* Nexuiz (nexuiz) [[Separate Query Port](#separate-query-port)]
-* Nitro Family (nitrofamily) [[Separate Query Port](#separate-query-port)]
-* No One Lives Forever (nolf) [[Separate Query Port](#separate-query-port)]
-* No One Lives Forever 2 (nolf2) [[Separate Query Port](#separate-query-port)]
-* Nuclear Dawn (nucleardawn)
-* OpenArena (openarena) [[Separate Query Port](#separate-query-port)]
-* OpenTTD (openttd)
-* Operation Flashpoint (operationflashpoint) [[Separate Query Port](#separate-query-port)]
-* Painkiller (painkiller) [[Separate Query Port](#separate-query-port)]
-* Postal 2 (postal2) [[Separate Query Port](#separate-query-port)]
-* Prey (prey) [[Separate Query Port](#separate-query-port)]
-* Primal Carnage: Extinction (primalcarnage) [[Separate Query Port](#separate-query-port)]
-* Quake 1: QuakeWorld (quake1)
-* Quake 2 (quake2)
-* Quake 3: Arena (quake3)
-* Quake 4 (quake4)
-* Rag Doll Kung Fu (ragdollkungfu)
-* Rainbow Six (r6) [[Separate Query Port](#separate-query-port)]
-* Rainbow Six 2: Rogue Spear (r6roguespear) [[Separate Query Port](#separate-query-port)]
-* Rainbow Six 3: Raven Shield (r6ravenshield) [[Separate Query Port](#separate-query-port)]
-* RalliSport Challenge (rallisportchallenge) [[Separate Query Port](#separate-query-port)]
-* Rally Masters (rallymasters) [[Separate Query Port](#separate-query-port)]
-* Red Orchestra (redorchestra) [[Separate Query Port](#separate-query-port)]
-* Red Orchestra: Ostfront 41-45 (redorchestraost) [[Separate Query Port](#separate-query-port)]
-* Red Orchestra 2 (redorchestra2) [[Separate Query Port](#separate-query-port)]
-* Redline (redline) [[Separate Query Port](#separate-query-port)]
-* Return to Castle Wolfenstein (rtcw) [[Separate Query Port](#separate-query-port)]
-* Ricochet (ricochet)
-* Rise of Nations (riseofnations) [[Separate Query Port](#separate-query-port)]
-* Rune (rune) [[Separate Query Port](#separate-query-port)]
-* Rust (rust)
-* San Andreas Multiplayer (samp)
-* Space Engineers (spaceengineers)
-* Serious Sam (ss) [[Separate Query Port](#separate-query-port)]
-* Serious Sam 2 (ss2)
-* Shattered Horizon (shatteredhorizon)
-* The Ship (ship)
-* Shogo (shogo) [[Separate Query Port](#separate-query-port)]
-* Shootmania (shootmania) [[Additional Notes](#nadeo-shootmania--trackmania--etc)]
-* SiN (sin) [[Separate Query Port](#separate-query-port)]
-* SiN Episodes (sinep)
-* Soldat (soldat) [[Separate Query Port](#separate-query-port)]
-* Soldier of Fortune (sof) [[Separate Query Port](#separate-query-port)]
-* Soldier of Fortune 2 (sof2) [[Separate Query Port](#separate-query-port)]
-* S.T.A.L.K.E.R. (stalker) [[Separate Query Port](#separate-query-port)]
-* Star Trek: Bridge Commander (stbc) [[Separate Query Port](#separate-query-port)]
-* Star Trek: Voyager - Elite Force (stvef) [[Separate Query Port](#separate-query-port)]
-* Star Trek: Voyager - Elite Force 2 (stvef2) [[Separate Query Port](#separate-query-port)]
-* Star Wars: Battlefront (swbf) [[Separate Query Port](#separate-query-port)]
-* Star Wars: Battlefront 2 (swbf2) [[Separate Query Port](#separate-query-port)]
-* Star Wars: Jedi Knight (swjk) [[Separate Query Port](#separate-query-port)]
-* Star Wars: Jedi Knight 2 (swjk2) [[Separate Query Port](#separate-query-port)]
-* Star Wars: Republic Commando (swrc) [[Separate Query Port](#separate-query-port)]
-* Starbound (starbound)
-* StarMade (starmade)
-* Suicide Survival (suicidesurvival)
-* SWAT 4 (swat4) [[Separate Query Port](#separate-query-port)]
-* Sven Coop (svencoop)
-* Synergy (synergy)
-* Tactical Ops (tacticalops) [[Separate Query Port](#separate-query-port)]
-* Team Factor (teamfactor) [[Separate Query Port](#separate-query-port)]
-* Team Fortress Classic (tfc)
-* Team Fortress 2 (tf2)
-* Teamspeak 2 (teamspeak2) [[Separate Query Port](#separate-query-port)]
-* Teamspeak 3 (teamspeak3) [[Separate Query Port](#separate-query-port)] [[Additional Notes](#teamspeak3)]
-* Terminus (terminus) [[Separate Query Port](#separate-query-port)]
-* Terraria (terraria) [[Separate Query Port](#separate-query-port)] [[Additional Notes](#terraria)]
-* Tony Hawk's Pro Skater 3 (thps3) [[Separate Query Port](#separate-query-port)]
-* Tony Hawk's Pro Skater 4 (thps4) [[Separate Query Port](#separate-query-port)]
-* Tony Hawk's Underground 2 (thu2) [[Separate Query Port](#separate-query-port)]
-* Tower Unite (towerunite)
-* Trackmania 2 (trackmania2) [[Additional Notes](#nadeo-shootmania--trackmania--etc)]
-* Trackmania Forever (trackmaniaforever) [[Additional Notes](#nadeo-shootmania--trackmania--etc)]
-* Tremulous (tremulous) [[Separate Query Port](#separate-query-port)]
-* Tribes 1: Starsiege (tribes1)
-* Tribes: Vengeance (tribesvengeance) [[Separate Query Port](#separate-query-port)]
-* Tron 2.0 (tron20) [[Separate Query Port](#separate-query-port)]
-* Turok 2 (turok2) [[Separate Query Port](#separate-query-port)]
-* Universal Combat (universalcombat) [[Separate Query Port](#separate-query-port)]
-* Unreal (unreal) [[Separate Query Port](#separate-query-port)]
-* unturned (unturned) [[Separate Query Port](#separate-query-port)]
-* Unreal Tournament (ut) [[Separate Query Port](#separate-query-port)]
-* Unreal Tournament 2003 (ut2003) [[Separate Query Port](#separate-query-port)]
-* Unreal Tournament 2004 (ut2004) [[Separate Query Port](#separate-query-port)]
-* Unreal Tournament 3 (ut3) [[Separate Query Port](#separate-query-port)]
-* Urban Terror (urbanterror) [[Separate Query Port](#separate-query-port)]
-* V8 Supercar Challenge (v8supercar) [[Separate Query Port](#separate-query-port)]
-* Ventrilo (ventrilo)
-* Vietcong (vietcong) [[Separate Query Port](#separate-query-port)]
-* Vietcong 2 (vietcong2) [[Separate Query Port](#separate-query-port)]
-* Warsow (warsow)
-* Wheel of Time (wheeloftime) [[Separate Query Port](#separate-query-port)]
-* Wolfenstein 2009 (wolfenstein2009) [[Separate Query Port](#separate-query-port)]
-* Wolfenstein: Enemy Territory (wolfensteinet) [[Separate Query Port](#separate-query-port)]
-* Xpand Rally (xpandrally) [[Separate Query Port](#separate-query-port)]
-* Zombie Master (zombiemaster)
-* Zombie Panic: Source (zps)
+| GameDig Type ID | Name | Notes
+|---|---|---
+| `7d2d`     | 7 Days to Die (2013)
+| `ageofchivalry` | Age of Chivalry (2007)
+| `aoe2`     | Age of Empires 2 (1999)
+| `alienarena` | Alien Arena (2004)
+| `alienswarm` | Alien Swarm (2010)
+| `avp2`     | Aliens versus Predator 2 (2001)
+| `avp2010`  | Aliens vs. Predator (2010)
+| `americasarmy` | America's Army (2002)
+| `americasarmy2` | America's Army 2 (2003)
+| `americasarmy3` | America's Army 3 (2009)
+| `americasarmypg` | America's Army: Proving Grounds (2015)
+| `arcasimracing` | Arca Sim Racing (2008)
+| `arkse`    | Ark: Survival Evolved (2017)
+| `arma2`    | ARMA 2 (2009)
+| `arma2oa`  | ARMA 2: Operation Arrowhead (2010)
+| `arma3`    | ARMA 3 (2013)
+| `arma`     | ARMA: Armed Assault (2007)
+| `armacwa`  | ARMA: Cold War Assault (2011)
+| `armar`    | ARMA: Resistance (2011)
+| `armagetron` | Armagetron Advanced (2001)
+| `atlas`    | Atlas (2018)
+| `baldursgate` | Baldur's Gate (1998)
+| `bat1944`  | Battalion 1944 (2018)
+| `bf1942`   | Battlefield 1942 (2002)
+| `bf2`      | Battlefield 2 (2005)
+| `bf2142`   | Battlefield 2142 (2006)
+| `bf3`      | Battlefield 3 (2011)
+| `bf4`      | Battlefield 4 (2013)
+| `bfh`      | Battlefield Hardline (2015)
+| `bfv`      | Battlefield Vietnam (2004)
+| `bfbc2`    | Battlefield: Bad Company 2 (2010)
+| `breach`   | Breach (2011)
+| `breed`    | Breed (2004)
+| `brink`    | Brink (2011)
+| `buildandshoot` | Build and Shoot / Ace of Spades Classic (2012)
+| `cod`      | Call of Duty (2003)
+| `cod2`     | Call of Duty 2 (2005)
+| `cod3`     | Call of Duty 3 (2006)
+| `cod4`     | Call of Duty 4: Modern Warfare (2007)
+| `codmw2`   | Call of Duty: Modern Warfare 2 (2009)
+| `codmw3`   | Call of Duty: Modern Warfare 3 (2011)
+| `coduo`    | Call of Duty: United Offensive (2004)
+| `codwaw`   | Call of Duty: World at War (2008)
+| `callofjuarez` | Call of Juarez (2006)
+| `chaser`   | Chaser (2003)
+| `chrome`   | Chrome (2003)
+| `codenameeagle` | Codename Eagle (2000)
+| `cacrenegade` | Command and Conquer: Renegade (2002)
+| `commandos3` | Commandos 3: Destination Berlin (2003)
+| `conanexiles` | Conan Exiles (2018)
+| `contactjack` | Contract J.A.C.K. (2003)
+| `cs15`     | Counter-Strike 1.5 (2002)
+| `cs16`     | Counter-Strike 1.6 (2003)
+| `cs2d`     | Counter-Strike: 2D (2004)
+| `cscz`     | Counter-Strike: Condition Zero (2004)
+| `csgo`     | Counter-Strike: Global Offensive (2012) | [Notes](#csgo)
+| `css`      | Counter-Strike: Source (2004)
+| `crossracing` | Cross Racing Championship Extreme 2005 (2005)
+| `crysis`   | Crysis (2007)
+| `crysis2`  | Crysis 2 (2011)
+| `crysiswars` | Crysis Wars (2008)
+| `daikatana` | Daikatana (2000)
+| `dnl`      | Dark and Light (2017)
+| `dmomam`   | Dark Messiah of Might and Magic (2006)
+| `darkesthour` | Darkest Hour: Europe '44-'45 (2008)
+| `dod`      | Day of Defeat (2003)
+| `dods`     | Day of Defeat: Source (2005)
+| `doi`      | Day of Infamy (2017)
+| `dayz`     | DayZ (2018)
+| `dayzmod`  | DayZ Mod (2013)
+| `deadlydozenpt` | Deadly Dozen: Pacific Theater (2002)
+| `dh2005`   | Deer Hunter 2005 (2004)
+| `descent3` | Descent 3 (1999)
+| `deusex`   | Deus Ex (2000)
+| `devastation` | Devastation (2003)
+| `dinodday` | Dino D-Day (2011)
+| `dirttrackracing2` | Dirt Track Racing 2 (2002)
+| `doom3`    | Doom 3 (2004)
+| `dota2`    | Dota 2 (2013)
+| `drakan`   | Drakan: Order of the Flame (1999)
+| `etqw`     | Enemy Territory: Quake Wars (2007)
+| `fear`     | F.E.A.R. (2005)
+| `f1c9902`  | F1 Challenge '99-'02 (2002)
+| `farcry`   | Far Cry (2004)
+| `farcry2`  | Far Cry 2 (2008)
+| `f12002`   | Formula One 2002 (2002)
+| `fortressforever` | Fortress Forever (2007)
+| `ffow`     | Frontlines: Fuel of War (2008)
+| `garrysmod` | Garry's Mod (2004)
+| `geneshift`<br>`mutantfactions` | Geneshift (2017)
+| `giantscitizenkabuto` | Giants: Citizen Kabuto (2000)
+| `globaloperations` | Global Operations (2002)
+| `ges`      | GoldenEye: Source (2010)
+| `gore`     | Gore: Ultimate Soldier (2002)
+| `fivem`    | Grand Theft Auto V - FiveM (2013)
+| `mtasa`    | Grand Theft Auto: San Andreas - Multi Theft Auto (2004)
+| `mtavc`    | Grand Theft Auto: Vice City - Multi Theft Auto (2002)
+| `gunmanchronicles` | Gunman Chronicles (2000)
+| `hl2dm`    | Half-Life 2: Deathmatch (2004)
+| `hldm`     | Half-Life Deathmatch (1998)
+| `hldms`    | Half-Life Deathmatch: Source (2005)
+| `halo`     | Halo (2003)
+| `halo2`    | Halo 2 (2007)
+| `heretic2` | Heretic II (1998)
+| `hexen2`   | Hexen II (1997)
+| `had2`     | Hidden & Dangerous 2 (2003)
+| `homefront` | Homefront (2011)
+| `homeworld2` | Homeworld 2 (2003)
+| `hurtworld` | Hurtworld (2015)
+| `igi2`     | I.G.I.-2: Covert Strike (2003)
+| `il2`      | IL-2 Sturmovik (2001)
+| `insurgency` | Insurgency (2014)
+| `insurgencysandstorm` | Insurgency: Sandstorm (2018)
+| `ironstorm` | Iron Storm (2002)
+| `jamesbondnightfire` | James Bond 007: Nightfire (2002)
+| `jc2mp`    | Just Cause 2 - Multiplayer (2010)
+| `kspdmp`   | Kerbal Space Program - DMP Multiplayer (2015)
+| `killingfloor` | Killing Floor (2009)
+| `killingfloor2` | Killing Floor 2 (2016)
+| `kingpin`  | Kingpin: Life of Crime (1999)
+| `kisspc`   | Kiss: Psycho Circus: The Nightmare Child (2000)
+| `kzmod`    | Kreedz Climbing (2017)
+| `left4dead` | Left 4 Dead (2008)
+| `left4dead2` | Left 4 Dead 2 (2009)
+| `m2mp`     | Mafia II - Multiplayer (2010)
+| `m2o`      | Mafia II - Online (2010)
+| `moh2010`  | Medal of Honor (2010)
+| `mohab`    | Medal of Honor: Airborne (2007)
+| `mohaa`    | Medal of Honor: Allied Assault (2002)
+| `mohbt`    | Medal of Honor: Allied Assault Breakthrough (2003)
+| `mohsh`    | Medal of Honor: Allied Assault Spearhead (2002)
+| `mohpa`    | Medal of Honor: Pacific Assault (2004)
+| `mohwf`    | Medal of Honor: Warfighter (2012)
+| `medievalengineers` | Medieval Engineers (2015)
+| `minecraft`<br>`minecraftping` | Minecraft (2009) | [Notes](#minecraft)
+| `minecraftpe`<br>`minecraftbe` | Minecraft: Bedrock Edition (2011)
+| `mnc`      | Monday Night Combat (2011)
+| `mumble`   | Mumble - GTmurmur Plugin (2005) | [Notes](#mumble)
+| `mumbleping` | Mumble - Lightweight (2005) | [Notes](#mumble)
+| `nascarthunder2004` | NASCAR Thunder 2004 (2003)
+| `ns`       | Natural Selection (2002)
+| `ns2`      | Natural Selection 2 (2012)
+| `nfshp2`   | Need for Speed: Hot Pursuit 2 (2002)
+| `nab`      | Nerf Arena Blast (1999)
+| `netpanzer` | netPanzer (2002)
+| `nwn`      | Neverwinter Nights (2002)
+| `nwn2`     | Neverwinter Nights 2 (2006)
+| `nexuiz`   | Nexuiz (2005)
+| `nitrofamily` | Nitro Family (2004)
+| `nmrih`    | No More Room in Hell (2011)
+| `nolf2`    | No One Lives Forever 2: A Spy in H.A.R.M.'s Way (2002)
+| `nucleardawn` | Nuclear Dawn (2011)
+| `openarena` | OpenArena (2005)
+| `openttd`  | OpenTTD (2004)
+| `operationflashpoint`<br>`flashpoint` | Operation Flashpoint: Cold War Crisis (2001)
+| `flashpointresistance` | Operation Flashpoint: Resistance (2002)
+| `painkiller` | Painkiller
+| `postal2`  | Postal 2
+| `prey`     | Prey
+| `primalcarnage` | Primal Carnage: Extinction
+| `quake1`   | Quake 1: QuakeWorld
+| `quake2`   | Quake 2
+| `quake3`   | Quake 3: Arena
+| `quake4`   | Quake 4
+| `ragdollkungfu` | Rag Doll Kung Fu
+| `r6`       | Rainbow Six
+| `r6roguespear` | Rainbow Six 2: Rogue Spear
+| `r6ravenshield` | Rainbow Six 3: Raven Shield
+| `rallisportchallenge` | RalliSport Challenge
+| `rallymasters` | Rally Masters
+| `redorchestra` | Red Orchestra
+| `redorchestra2` | Red Orchestra 2
+| `redorchestraost` | Red Orchestra: Ostfront 41-45
+| `redline`  | Redline
+| `rtcw`     | Return to Castle Wolfenstein
+| `rfactor`  | rFactor
+| `ricochet` | Ricochet
+| `riseofnations` | Rise of Nations
+| `rune`     | Rune
+| `rust`     | Rust
+| `stalker`  | S.T.A.L.K.E.R.
+| `samp`     | San Andreas Multiplayer
+| `ss`       | Serious Sam
+| `ss2`      | Serious Sam 2
+| `shatteredhorizon` | Shattered Horizon
+| `shogo`    | Shogo
+| `shootmania` | Shootmania | [Notes](#nadeo-shootmania--trackmania--etc)
+| `sin`      | SiN
+| `sinep`    | SiN Episodes
+| `soldat`   | Soldat
+| `sof`      | Soldier of Fortune
+| `sof2`     | Soldier of Fortune 2
+| `spaceengineers` | Space Engineers
+| `stbc`     | Star Trek: Bridge Commander
+| `stvef`    | Star Trek: Voyager - Elite Force
+| `stvef2`   | Star Trek: Voyager - Elite Force 2
+| `swbf`     | Star Wars: Battlefront
+| `swbf2`    | Star Wars: Battlefront 2
+| `swjk`     | Star Wars: Jedi Knight
+| `swjk2`    | Star Wars: Jedi Knight 2
+| `swrc`     | Star Wars: Republic Commando
+| `starbound` | Starbound
+| `starmade` | StarMade
+| `starsiege` | Starsiege (2009)
+| `suicidesurvival` | Suicide Survival
+| `svencoop` | Sven Coop
+| `swat4`    | SWAT 4
+| `synergy`  | Synergy
+| `tacticalops` | Tactical Ops
+| `takeonhelicopters` | Take On Helicopters (2011)
+| `teamfactor` | Team Factor
+| `tf2`      | Team Fortress 2
+| `tfc`      | Team Fortress Classic
+| `teamspeak2` | Teamspeak 2
+| `teamspeak3` | Teamspeak 3 | [Notes](#teamspeak3)
+| `terminus` | Terminus
+| `terraria`<br>`tshock` | Terraria - TShock (2011) | [Notes](#terraria)
+| `hidden`   | The Hidden (2005)
+| `nolf`     | The Operative: No One Lives Forever (2000)
+| `ship`     | The Ship
+| `graw`     | Tom Clancy's Ghost Recon Advanced Warfighter (2006)
+| `graw2`    | Tom Clancy's Ghost Recon Advanced Warfighter 2 (2007)
+| `thps3`    | Tony Hawk's Pro Skater 3
+| `thps4`    | Tony Hawk's Pro Skater 4
+| `thu2`     | Tony Hawk's Underground 2
+| `towerunite` | Tower Unite
+| `trackmania2` | Trackmania 2 | [Notes](#nadeo-shootmania--trackmania--etc)
+| `trackmaniaforever` | Trackmania Forever | [Notes](#nadeo-shootmania--trackmania--etc)
+| `tremulous` | Tremulous
+| `tribes1`  | Tribes 1: Starsiege
+| `tribesvengeance` | Tribes: Vengeance
+| `tron20`   | Tron 2.0
+| `turok2`   | Turok 2
+| `universalcombat` | Universal Combat
+| `unreal`   | Unreal
+| `ut`       | Unreal Tournament
+| `ut2003`   | Unreal Tournament 2003
+| `ut2004`   | Unreal Tournament 2004
+| `ut3`      | Unreal Tournament 3
+| `unturned` | unturned
+| `urbanterror` | Urban Terror
+| `v8supercar` | V8 Supercar Challenge
+| `ventrilo` | Ventrilo
+| `vcmp`     | Vice City Multiplayer
+| `vietcong` | Vietcong
+| `vietcong2` | Vietcong 2
+| `warsow`   | Warsow
+| `wheeloftime` | Wheel of Time
+| `wolfenstein2009` | Wolfenstein 2009
+| `wolfensteinet` | Wolfenstein: Enemy Territory
+| `xpandrally` | Xpand Rally
+| `zombiemaster` | Zombie Master
+| `zps`      | Zombie Panic: Source
 
 <!--- END GENERATED GAMES -->
 
 ### Not supported (yet)
 
-* rFactor Engine (rfactor):
- * rFactor
- * Arca Sim Racing
 * Cube Engine (cube):
- * Cube 1
- * Assault Cube
- * Cube 2: Sauerbraten
- * Blood Frontier
+  * Cube 1
+  * Assault Cube
+  * Cube 2: Sauerbraten
+  * Blood Frontier
+* Alien vs Predator
+* Armed Assault 2: Operation Arrowhead
+* Battlefield Bad Company 2: Vietnam
 * BFRIS
 * Call of Duty: Black Ops 1 and 2 (no documentation, may require rcon)
-* Counter-Strike 2D
+* Crysis Warhead
+* Days of War
+* DirtyBomb
+* Doom - Skulltag
+* Doom - ZDaemon
+* ECO Global Survival
+* Empyrion - Galactic Survival
+* Farming Simulator
 * Freelancer
 * Ghost Recon
-* GTR2
+* GRAV Online
+* GTA Network
+* GTR 2
 * Haze
-* Hexen 2
+* Hexen World
+* Just Cause 3 Multiplayer
+* Lost Heaven
+* Multi Theft Auto
+* Pariah
 * Plain Sight
+* Project Reality: Battlefield 2
+* Purge Jihad
+* Quake Live
+* Red Eclipse
 * Red Faction
-* Savage: Battle for Newerth
+* Rising Storm 2
+* S.T.A.L.K.E.R. Clear Sky
+* Savage: The Battle For Newerth
 * Savage 2: A Tortured Soul
+* SiN 1 Multiplayer
+* South Park
+* Squad
+* Star Wars Jedi Knight: Dark Forces II
+* Star Wars: X-Wing Alliance
 * Sum of All Fears
 * Teeworlds
+* The Forrest
+* Tibia
+* Titanfall
 * Tribes 2
-* Vice City Multiplayer
+* Unreal 2 XMP
 * World in Conflict
+* World Opponent Network
+* Wurm Unlimited
 
 > Want support for one of these games? Please open an issue to show your interest!
-> __Know how to code?__ Protocols for most of the games above are documented
-> in the /reference folder, ready for you to develop into GameDig!
-
-<!-- -->
+> __Know how to code?__ Protocol details for many of the games above are documented
+> at https://github.com/sonicsnes/legacy-query-library-archive
+> , ready for you to develop into GameDig!
 
 > Don't see your game listed here?
 >
@@ -389,14 +420,6 @@ Games with Additional Notes
 ### <a name="csgo"></a>Counter-Strike: Global Offensive
 To receive a full player list response from CS:GO servers, the server must
 have set the cvar: host_players_show 2
-
-### DayZ
-DayZ uses a query port that is separate from its main game port. The query port is usually
-the game port PLUS 24714 or 24715. You may need to pass this port in as the 'port_query' request option.
-
-### Minecraft
-Some minecraft servers may not respond to a typical status query. If this is the case, try using the
-'minecraftping' server type instead, which uses a less accurate but more reliable solution.
 
 ### Mumble
 For full query results from Mumble, you must be running the
@@ -424,12 +447,6 @@ For teamspeak 3 queries to work correctly, the following permissions must be ava
 Requires tshock server mod, and a REST user token, which can be passed to GameDig with the
 additional option: token
 
-### Separate Query Port
-Games with this note use a query port which is usually not the same as the game's connection port.
-Usually, no action will be required from you. The 'port' option you pass GameDig should be the game's
-connection port. GameDig will attempt to calculate the query port automatically. If the query still fails,
-you may need to pass the 'port_query' option to GameDig as well, indicating the separate query port.
-
 Usage from Command Line
 ---
 
@@ -439,17 +456,98 @@ You'll still need npm to install gamedig:
 npm install gamedig -g
 ```
 
-After installing gamedig globally, you can call gamedig via the command line
-using the same parameters mentioned in the API above:
+After installing gamedig globally, you can call gamedig via the command line:
 ```shell
-gamedig --type minecraft --host mc.example.com --port 11234
+gamedig --type minecraft mc.example.com:11234
 ```
 
-The output of the command will be in JSON format.
+The output of the command will be in JSON format. Additional advanced parameters can be passed in
+as well: `--debug`, `--pretty`, `--socketTimeout 5000`, etc.
 
-Major Version Changes
+Changelog
 ---
 
-### 1.0
+### 2.0.12
+* Servers are now limited to 10000 players to prevent OOM
+* Improvements to Starmade (2012)
+* Added Atlas (2018)
+
+### 2.0.11
+* Added Acra Sim Racing
+* Added Mafia 2: Online
+
+### 2.0.10
+* Added rFactor
+
+### 2.0.9
+* Added Vice City: Multiplayer
+
+### 2.0.8
+* Improve out-of-order packet handling for gamespy1 protocol
+* Work-around for buggy duplicate player reporting from bf1942 servers
+* Report team names rather than IDs when possible for gamespy1 protocol
+
+### 2.0.7
+* Prevent tcp socket errors from dumping straight to console
+
+### 2.0.6
+* Added support for host domains requiring Punycode encoding (special characters)
+
+### 2.0.5
+* Added support for Counter-Strike: 2D
+
+### 2.0.4
+* Added details about new 2.0 reponse fields to the README.
+
+### 2.0.3
+* Added support for Insurgency: Sandstorm
+
+### 2.0.2
+* Added support for Starsiege 2009 (starsiege)
+
+### 2.0.1
+* Updated readme games list for 2.0
+* Fixed csgo default port
+
+### 2.0.0
+
+##### Breaking API changes
+* **Node 8 is now required**
+* Removed the `port_query` option. You can now pass either the server's game port **or** query port in the `port` option, and 
+GameDig will automatically discover the proper port to query. Passing the query port is more likely be successful in
+unusual cases, as otherwise it must be automatically derived from the game port.
+* Removed `callback` parameter from Gamedig.query. Only promises are now supported. If you would like to continue
+using callbacks, you can use node's `util.callbackify` function to convert the method to callback format.
+* Removed `query` field from response object, as it was poorly documented and unstable.
+* Removed `notes` field from options / response object. Data can be passed through a standard javascript context if needed.
+
+##### Minor Changes
+* Rewrote core to use promises extensively for better error-handling. Async chains have been dramatically simplified
+by using async/await across the codebase, eliminating callback chains and the 'async' dependency.
+* Replaced `--output pretty` cli parameter with `--pretty`.
+* You can now query from CLI using shorthand syntax: `gamedig --type <gameid> <ip>[:<port>]`
+* UDP socket is only opened if needed by a query.
+* Automatic query port detection -- If provided with a non-standard port, gamedig will attempt to discover if it is a
+game port or query port by querying twice: once to the port provided, and once to the port including the game's query
+port offset (if available).
+* Added new `connect` field to the response object. This will typically include the game's `ip:port` (the port will reflect the server's
+game port, even if you passed in a query port in your request). For some games, this may be a server ID or connection url
+if an IP:Port is not appropriate.
+* Added new `ping` field (in milliseconds) to the response object. As icmp packets are often blocked by NATs, and node has poor support
+for raw sockets, this time is derived from the rtt of one of the UDP requests, or the time required to open a TCP socket
+during the query.
+* Improved debug logging across all parts of GameDig
+* Removed global `Gamedig.debug`. `debug` is now an option on each query.
+
+##### Protocol Changes
+* Added support for games using older versions of battlefield protocol.
+* Simplified detection of BC2 when using battlefield protocol.
+* Fixed buildandshoot not reading player list
+* Standardized all doom3 games into a single protocol, which can discover protocol discrepancies automatically.
+* Standardized all gamespy2 games into a single protocol, which can discover protocol discrepancies automatically.
+* Standardized all gamespy3 games into a single protocol, which can discover protocol discrepancies automatically.
+* Improved valve protocol challenge key retry process
+
+### 1.0.0
 * First official release
-* Node.js 6.0 is now required
+* Node.js 6 is now required

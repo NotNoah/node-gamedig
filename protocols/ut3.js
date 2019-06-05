@@ -1,6 +1,8 @@
-class Ut3 extends require('./gamespy3') {
-    finalizeState(state) {
-        super.finalizeState(state);
+const Gamespy3 = require('./gamespy3');
+
+class Ut3 extends Gamespy3 {
+    async run(state) {
+        await super.run(state);
 
         this.translate(state.raw,{
             'mapname': false,

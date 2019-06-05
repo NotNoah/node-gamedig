@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 
-const argv = require('minimist')(process.argv.slice(2)),
+const Minimist = require('minimist'),
     Gamedig = require('..');
+
+const argv = Minimist(process.argv.slice(2), {
+    boolean: ['pretty','debug']
+});
 
 const debug = argv.debug;
 delete argv.debug;
-const outputFormat = argv.output;
-delete argv.output;
+const pretty = !!argv.pretty || debug;
+delete argv.pretty;
 
 const options = {};
 for(const key of Object.keys(argv)) {
@@ -14,18 +18,26 @@ for(const key of Object.keys(argv)) {
     if(
         key === '_'
         || key.charAt(0) === '$'
-        || (typeof value !== 'string' && typeof value !== 'number')
     )
         continue;
     options[key] = value;
 }
 
-if(debug) Gamedig.debug = true;
-Gamedig.isCommandLine = true;
+if (argv._.length >= 1) {
+    const target = argv._[0];
+    const split = target.split(':');
+    options.host = split[0];
+    if (split.length >= 2) {
+        options.port = split[1];
+    }
+}
+if (debug) {
+    options.debug = true;
+}
 
 Gamedig.query(options)
     .then((state) => {
-        if(outputFormat === 'pretty') {
+        if(pretty) {
             console.log(JSON.stringify(state,null,'  '));
         } else {
             console.log(JSON.stringify(state));
@@ -42,7 +54,7 @@ Gamedig.query(options)
             if (error instanceof Error) {
                 error = error.message;
             }
-            if (outputFormat === 'pretty') {
+            if (pretty) {
                 console.log(JSON.stringify({error: error}, null, '  '));
             } else {
                 console.log(JSON.stringify({error: error}));
